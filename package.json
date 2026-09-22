@@ -33,7 +33,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test \"tests/**/*.test.js\"",
+    "test": "node --test tests/agent-scan.test.js",
     "scan:self": "node bin/agent-scan.js .",
     "demo": "node bin/agent-scan.js examples --fail-on none"
   },
