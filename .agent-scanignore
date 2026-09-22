@@ -1,0 +1,8 @@
+# agent-scan ignores (glob patterns, relative to the scan root)
+
+# The scanner's own rule definitions, demos and test fixtures
+# legitimately contain attack signatures.
+src/analyzers/*
+src/rules.js
+tests/*
+examples/*

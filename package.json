@@ -1,0 +1,47 @@
+{
+  "name": "agent-scan",
+  "version": "0.1.0",
+  "description": "Security scanner for the AI agent ecosystem: MCP servers, Agent Skills, AGENTS.md / rule files, and agent tool code. Detects prompt injection, tool poisoning, data exfiltration and supply-chain risks. Zero dependencies.",
+  "keywords": [
+    "security",
+    "mcp",
+    "model-context-protocol",
+    "ai-agents",
+    "prompt-injection",
+    "agent-skills",
+    "scanner",
+    "sarif",
+    "code-scanning",
+    "linter",
+    "supply-chain"
+  ],
+  "license": "MIT",
+  "author": "agent-scan contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-scan/agent-scan.git"
+  },
+  "type": "module",
+  "bin": {
+    "agent-scan": "./bin/agent-scan.js"
+  },
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "scan:self": "node bin/agent-scan.js .",
+    "demo": "node bin/agent-scan.js examples --fail-on none"
+  },
+  "files": [
+    "bin",
+    "src",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ]
+}

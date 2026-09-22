@@ -1,0 +1,6 @@
+node_modules/
+*.sarif
+agent-scan-results.*
+report.*.json
+.DS_Store
+dist/

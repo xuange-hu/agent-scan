@@ -1,0 +1,58 @@
+name: 'agent-scan'
+description: 'Scan for AI agent supply-chain risks: prompt injection in skills/rules, MCP config dangers, tool-code vulnerabilities'
+author: 'agent-scan'
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  path:
+    description: 'Path to scan (repo root, folder, or single file)'
+    required: false
+    default: '.'
+  fail-on:
+    description: 'Exit 1 when findings reach this severity (critical|high|medium|low|none)'
+    required: false
+    default: 'critical'
+  include-all-md:
+    description: 'Also scan every *.md file, not only SKILL/AGENTS/prompt docs ("true"/"false")'
+    required: false
+    default: 'false'
+  sarif-file:
+    description: 'Where to write the SARIF report inside the runner'
+    required: false
+    default: 'agent-scan-results.sarif'
+  upload-sarif:
+    description: 'Upload SARIF to GitHub code scanning ("true"/"false")'
+    required: false
+    default: 'true'
+
+outputs:
+  sarif:
+    description: 'Path of the generated SARIF file'
+    value: ${{ steps.scan.outputs.sarif }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run agent-scan
+      id: scan
+      shell: bash
+      env:
+        AGENT_SCAN_ENTRY: ${{ github.action_path }}/bin/agent-scan.js
+        AGENT_SCAN_PATH: ${{ inputs.path }}
+        AGENT_SCAN_FAIL_ON: ${{ inputs.fail-on }}
+        AGENT_SCAN_ALL_MD: ${{ inputs.include-all-md }}
+        AGENT_SCAN_SARIF: ${{ inputs.sarif-file }}
+      run: |
+        ARGS=("$AGENT_SCAN_PATH" --fail-on "$AGENT_SCAN_FAIL_ON" --no-color)
+        if [ "$AGENT_SCAN_ALL_MD" = "true" ]; then ARGS+=(--include-all-md); fi
+        node "$AGENT_SCAN_ENTRY" --format sarif -o "$AGENT_SCAN_SARIF" "${ARGS[@]}"
+        echo "sarif=$AGENT_SCAN_SARIF" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF to code scanning
+      if: always() && inputs.upload-sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+        category: agent-scan

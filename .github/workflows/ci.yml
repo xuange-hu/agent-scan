@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['20', '22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+
+  self-scan:
+    # Dogfooding: agent-scan must scan its own repo clean (see .agent-scanignore
+    # for the analyzer/fixture carve-outs, which are themselves reviewed).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Scan repository
+        run: node bin/agent-scan.js . --fail-on low --no-color
+      - name: Demo fixtures must all light up
+        run: |
+          node bin/agent-scan.js examples --format json -o /tmp/examples.json --fail-on none
+          node -e "
+            const r = JSON.parse(require('fs').readFileSync('/tmp/examples.json', 'utf8'));
+            const groups = new Set(r.findings.map(f => f.ruleId.slice(3, 4)));
+            for (const g of ['P', 'M', 'S', 'N']) {
+              if (!groups.has(g)) { console.error('examples must trigger rule group AS-' + g); process.exit(1); }
+            }
+            console.log('demo fixtures trigger', r.findings.length, 'findings across all groups');
+          "
