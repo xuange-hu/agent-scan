@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability in agent-scan
 
-Open a [GitHub security advisory](https://github.com/agent-scan/agent-scan/security/advisories/new) rather than a public issue. We aim to respond within 72 hours.
+Open a [GitHub security advisory](https://github.com/xuange-hu/agent-scan/security/advisories/new) rather than a public issue. We aim to respond within 72 hours.
 
 Threat model note: agent-scan is a **static** scanner. It never executes the code or scripts it finds, and parsed JSON never reaches `eval`. If you believe a crafted file can turn agent-scan itself into an execution vector (e.g. via ReDoS), that is a vulnerability — please report it.
 

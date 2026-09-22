@@ -51,10 +51,10 @@ $ agent-scan ./some-skill-repo
 
 ```bash
 # no dependencies to resolve — just run it
-npx github:agent-scan/agent-scan path/to/repo
+npx github:xuange-hu/agent-scan path/to/repo
 
 # or globally
-npm install -g github:agent-scan/agent-scan
+npm install -g github:xuange-hu/agent-scan
 ```
 
 Requires Node ≥ 20. Nothing else. No API keys, no network calls, no model in the loop — a scan is a pure function of the files on disk.
@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: agent-scan/agent-scan@v1   # the action lives in this repo
+      - uses: xuange-hu/agent-scan@v1   # the action lives in this repo
         with:
           fail-on: high
 ```

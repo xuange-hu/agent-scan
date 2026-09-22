@@ -30,7 +30,7 @@ export function reportSarif(result) {
             driver: {
               name: 'agent-scan',
               version: result.version,
-              informationUri: 'https://github.com/agent-scan/agent-scan',
+              informationUri: 'https://github.com/xuange-hu/agent-scan',
               rules: usedRules.map((id) => {
                 const r = RULES[id] ?? { title: id, severity: 'low', description: id, references: [] };
                 return {

@@ -19,7 +19,7 @@
   "author": "agent-scan contributors",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/agent-scan/agent-scan.git"
+    "url": "git+https://github.com/xuange-hu/agent-scan.git"
   },
   "type": "module",
   "bin": {
