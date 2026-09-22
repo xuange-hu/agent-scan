@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   test:
@@ -32,6 +33,14 @@ jobs:
           node-version: '24'
       - name: Scan repository
         run: node bin/agent-scan.js . --fail-on low --no-color
+      - name: Produce self SARIF
+        run: node bin/agent-scan.js . --format sarif -o agent-scan-self.sarif --fail-on none
+      - name: Upload SARIF (dogfood code scanning)
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: agent-scan-self.sarif
+          category: agent-scan
       - name: Demo fixtures must all light up
         run: |
           node bin/agent-scan.js examples --format json -o /tmp/examples.json --fail-on none
