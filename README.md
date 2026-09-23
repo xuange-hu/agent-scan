@@ -22,6 +22,8 @@ Detects prompt injection, hidden instructions, data exfiltration, tool poisoning
 
 Your coding agent auto-installs MCP servers, downloads skills from marketplaces, and follows instructions in `SKILL.md` / `AGENTS.md` files written by strangers. **Nothing checks what those files actually tell your agent to do.**
 
+> 📊 **We scanned the top 100 MCP packages on npm (~61M weekly installs): 41% carry at least one security signal, including a shipped skill that tells the agent "do not tell users…"** → [State of MCP Security, Sept 2026](docs/state-of-mcp-security.md)
+
 The attack classes are real and repeating — malicious skill listings smuggling instructions in base64 and zero-width Unicode, `curl | bash` bootstrap lines agents execute verbatim, `npx` launches of unpinned packages, MCP tool code with command injection one `execSync` away from your SSH keys. `agent-scan` gives the agent ecosystem the audit step it never had.
 
 ```

@@ -1,4 +1,5 @@
 node_modules/
+.scan-cache/
 *.sarif
 agent-scan-results.*
 report.*.json
