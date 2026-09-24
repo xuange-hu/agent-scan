@@ -9,3 +9,6 @@ examples/*
 
 # Cached package extracts from the Top-100 scan pipeline
 .scan-cache/*
+
+# Unpublished launch/disclosure drafts (quote real attack strings)
+drafts/*

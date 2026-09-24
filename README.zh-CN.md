@@ -22,8 +22,8 @@
 ## 安装
 
 ```bash
-npx github:xuange-hu/agent-scan path/to/repo   # 无需安装
-npm install -g github:xuange-hu/agent-scan     # 或全局安装
+npx @yoshine2007/agent-scan path/to/repo       # 无需安装
+npm install -g @yoshine2007/agent-scan         # 或全局安装
 ```
 
 仅需 Node ≥ 20。不需要 API Key，不发起任何网络请求，模型也不参与扫描——扫描是磁盘文件的纯函数。

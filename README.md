@@ -53,10 +53,10 @@ $ agent-scan ./some-skill-repo
 
 ```bash
 # no dependencies to resolve — just run it
-npx github:xuange-hu/agent-scan path/to/repo
+npx @yoshine2007/agent-scan path/to/repo
 
 # or globally
-npm install -g github:xuange-hu/agent-scan
+npm install -g @yoshine2007/agent-scan
 ```
 
 Requires Node ≥ 20. Nothing else. No API keys, no network calls, no model in the loop — a scan is a pure function of the files on disk.

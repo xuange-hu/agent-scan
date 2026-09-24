@@ -1,6 +1,9 @@
 {
-  "name": "agent-scan",
+  "name": "@yoshine2007/agent-scan",
   "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Security scanner for the AI agent ecosystem: MCP servers, Agent Skills, AGENTS.md / rule files, and agent tool code. Detects prompt injection, tool poisoning, data exfiltration and supply-chain risks. Zero dependencies.",
   "keywords": [
     "security",
@@ -23,7 +26,7 @@
   },
   "type": "module",
   "bin": {
-    "agent-scan": "./bin/agent-scan.js"
+    "agent-scan": "bin/agent-scan.js"
   },
   "main": "./src/index.js",
   "exports": {
