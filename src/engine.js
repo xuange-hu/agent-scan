@@ -6,7 +6,7 @@ import { analyzeMcpConfig } from './analyzers/mcpConfig.js';
 import { analyzeSource } from './analyzers/source.js';
 import { analyzeNpmPackage } from './analyzers/npmPackage.js';
 import { RULES } from './rules.js';
-import { SEVERITY_WEIGHT, severityAtLeast } from './util.js';
+import { SEVERITY_WEIGHT, TOOL_VERSION, severityAtLeast } from './util.js';
 
 const ANALYZERS = {
   markdown: analyzeMarkdown,
@@ -94,7 +94,7 @@ export function finalize(rawFindings, meta) {
 
   return {
     tool: 'agent-scan',
-    version: '0.1.0',
+    version: TOOL_VERSION,
     root: meta.root,
     findings,
     counts,

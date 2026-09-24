@@ -1,4 +1,7 @@
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+
+export const TOOL_VERSION = createRequire(import.meta.url)('../package.json').version;
 
 export const SEVERITIES = ['info', 'low', 'medium', 'high', 'critical'];
 export const SEVERITY_WEIGHT = { critical: 25, high: 12, medium: 6, low: 2, info: 1 };

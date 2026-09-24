@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { TOOL_VERSION } from '../util.js';
 
 // Minimal MCP stdio client (newline-delimited JSON-RPC 2.0), zero deps.
 // Safety contract: we ONLY perform the initialize handshake and metadata
@@ -79,7 +80,7 @@ export async function captureMcpMetadata(command, args = [], { timeoutMs = 15000
       request('initialize', {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: {},
-        clientInfo: { name: 'agent-scan-probe', version: '0.2.0' },
+        clientInfo: { name: 'agent-scan-probe', version: TOOL_VERSION },
       }),
       finished,
     ]);

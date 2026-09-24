@@ -5,7 +5,7 @@ import { RULES } from './rules.js';
 import { reportTerminal } from './reporters/terminal.js';
 import { reportJson, reportSarif } from './reporters/json.js';
 import { reportMarkdown } from './reporters/markdown.js';
-import { SEVERITIES } from './util.js';
+import { SEVERITIES, TOOL_VERSION } from './util.js';
 
 const HELP = `agent-scan — security scanner for the AI agent ecosystem
 (npm audit for MCP servers, Agent Skills, AGENTS.md and agent tool code)
@@ -54,7 +54,7 @@ export function main(argv) {
     const a = argv[i];
     switch (a) {
       case '-h': case '--help': process.stdout.write(HELP); return 0;
-      case '-V': case '--version': process.stdout.write('agent-scan 0.1.0\n'); return 0;
+      case '-V': case '--version': process.stdout.write(`agent-scan ${TOOL_VERSION}\n`); return 0;
       case '--rules': showRules = true; break;
       case '-f': case '--format': opts.format = argv[++i]; break;
       case '--json': opts.format = 'json'; break;
