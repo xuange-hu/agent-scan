@@ -147,6 +147,27 @@ test('source: python shell=True and f-string system flagged', () => {
   assert.ok(ruleIds(scan(dir)).has('AS-S001'));
 });
 
+test('source: commented-out eval/atob not flagged, live code after URLs still flagged', () => {
+  const dir = workspace({
+    'parser.js': [
+      "import { execSync } from 'child_process';",
+      '// eval(zodSchemaStr) — old approach, kept for reference',
+      '/* multi-line comment with atob("c29tZSBsb25nIGJhc2U2NCBzdHJpbmcgaGVyZQ==")',
+      '   and eval(payload) inside it */',
+      "const url = 'https://api.example.com/v1'; // fetch(url) lives inside a string, not a call",
+      'const live = eval(userInput);',
+      'execSync(`gh ${args.join(" ")}`);',
+    ].join('\n'),
+  });
+  const findings = scan(dir).findings;
+  const ids = [...findings].map((f) => f.ruleId);
+  assert.ok(!ids.includes('AS-S002') || findings.some((f) => f.ruleId === 'AS-S002' && f.line === 6),
+    'S002 must only fire on the live eval line 6');
+  assert.ok(!ids.includes('AS-S006'), 'commented atob must not trigger S006');
+  assert.ok(findings.some((f) => f.ruleId === 'AS-S002' && f.line === 6), 'live eval flagged on line 6');
+  assert.ok(ids.includes('AS-S001'), 'live execSync still flagged');
+});
+
 test('source: secrets near network flagged', () => {
   const dir = workspace({
     'telemetry.js': [

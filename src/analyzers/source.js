@@ -1,4 +1,4 @@
-import { allMatches, base64Blobs, lineColFromIndex, proximity, snippetAt } from '../util.js';
+import { allMatches, base64Blobs, lineColFromIndex, maskComments, proximity, snippetAt } from '../util.js';
 
 // exec("...${var}...") / exec('a' + b) / os.system(f"...{x}") / f-string into subprocess
 // (?<![\w.$]) keeps regex.exec(), obj.eval-style method calls from matching
@@ -75,16 +75,19 @@ function locateFindings(ruleId, text, hits, mk) {
 export function analyzeSource(ctx) {
   const { text, isPython } = ctx;
   const findings = [];
+  // commented-out code must not light up eval/obfuscation rules; masking keeps
+  // every index aligned with the original text so positions/snippets still work
+  const masked = maskComments(text, { isPython });
 
   const execHits = allMatches(text, join(COMMAND_INJECTION_RES));
   findings.push(...locateFindings('AS-S001', text, execHits, (h) =>
     `Shell execution with interpolated value: ${collapse(h.full)}`));
 
-  const evalHits = allMatches(text, join(EVAL_RES));
+  const evalHits = allMatches(masked, join(EVAL_RES));
   findings.push(...locateFindings('AS-S002', text, evalHits, (h) =>
     `Dynamic evaluation of non-literal input: ${collapse(h.full)}`));
 
-  const obfHits = allMatches(text, join(OBfuscATION_RES));
+  const obfHits = allMatches(masked, join(OBfuscATION_RES));
   findings.push(...locateFindings('AS-S006', text, obfHits, (h) =>
     `Obfuscation construct: ${collapse(h.full.slice(0, 60))}…`));
 

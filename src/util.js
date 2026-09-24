@@ -36,6 +36,49 @@ export function snippetAt(text, index, length = 1) {
 }
 
 /**
+ * Replace comment characters with spaces (string literals preserved, newlines
+ * kept) so match indices and line/column positions stay valid against the
+ * original text. Used to keep commented-out code out of pattern rules.
+ */
+export function maskComments(text, { isPython = false } = {}) {
+  const out = text.split('');
+  const blank = (i) => { if (text[i] !== '\n') out[i] = ' '; };
+  const n = text.length;
+  let i = 0;
+  while (i < n) {
+    const c = text[i];
+    if (c === '"' || c === "'" || (!isPython && c === '`')) {
+      let j = i + 1;
+      while (j < n) {
+        if (text[j] === '\\') { j += 2; continue; }
+        if (text[j] === c) { j++; break; }
+        if (text[j] === '\n' && c !== '`') { j++; break; }
+        j++;
+      }
+      i = j;
+      continue;
+    }
+    if (c === '#' && isPython) {
+      while (i < n && text[i] !== '\n') { blank(i); i++; }
+      continue;
+    }
+    if (!isPython && c === '/' && text[i + 1] === '/') {
+      while (i < n && text[i] !== '\n') { blank(i); i++; }
+      continue;
+    }
+    if (!isPython && c === '/' && text[i + 1] === '*') {
+      let j = i + 2;
+      while (j < n && !(text[j] === '*' && text[j + 1] === '/')) { blank(j); j++; }
+      if (j < n) { blank(j); blank(j + 1); j += 2; }
+      i = j;
+      continue;
+    }
+    i++;
+  }
+  return out.join('');
+}
+
+/**
  * Scan `text` for every match of `regex` (must be global).
  * Returns [{ index, match }] where match is the last capture group if present,
  * otherwise the full match.
