@@ -50,7 +50,7 @@ export function scan(rootPath, { includeAllMd = false, ignore = [] } = {}) {
         const rule = RULES[f.ruleId];
         findings.push({
           ruleId: f.ruleId,
-          severity: rule?.severity ?? 'low',
+          severity: f.severity ?? rule?.severity ?? 'low',
           category: rule?.category ?? 'unknown',
           title: rule?.title ?? f.ruleId,
           message: f.message,

@@ -112,8 +112,19 @@ export function analyzeSource(ctx) {
     `File path built from request/parameter input without visible containment: ${collapse(h.full)}`));
 
   const ssrfHits = allMatches(text, join(SSRF_RES));
-  findings.push(...locateFindings('AS-S005', text, ssrfHits, (h) =>
-    `Network destination derived from external input: ${collapse(h.full)}`));
+  const ssrfFindings = locateFindings('AS-S005', text, ssrfHits, (h) =>
+    `Network destination derived from external input: ${collapse(h.full)}`);
+  // bundled/minified code matches these patterns without any taint context;
+  // keep the signal but demote noise (144/100-package hits were mostly this)
+  const isBundled = /\.min\.[cm]?js$|(?:^|[/\\])(?:bundle|dist)[/\\]/i.test(ctx.rel ?? '')
+    || (text.length > 20_000 && text.length / (text.split('\n').length || 1) > 200);
+  if (isBundled) {
+    for (const f of ssrfFindings) {
+      f.severity = 'low';
+      f.message += ' (in bundled/minified code — no taint context available)';
+    }
+  }
+  findings.push(...ssrfFindings);
 
   return findings;
 }

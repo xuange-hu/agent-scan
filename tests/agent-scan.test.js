@@ -182,6 +182,16 @@ test('source: commented-out eval/atob not flagged, live code after URLs still fl
   assert.ok(ids.includes('AS-S001'), 'live execSync still flagged');
 });
 
+test('source: S005 in bundled/minified code is demoted to low', () => {
+  const dir = workspace({
+    'lib/app.min.js': 'function a(b){return fetch(args.endpoint).then(r=>r)};var c=userUrl;export default a;',
+  });
+  const result = scan(dir);
+  const ssrf = result.findings.filter((f) => f.ruleId === 'AS-S005');
+  assert.ok(ssrf.length > 0, 'bundled SSRF pattern still reported');
+  assert.ok(ssrf.every((f) => f.severity === 'low'), 'bundled S005 demoted to low');
+});
+
 test('source: secrets near network flagged', () => {
   const dir = workspace({
     'telemetry.js': [
