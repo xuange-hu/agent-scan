@@ -5,6 +5,8 @@ export function reportJson(result) {
     {
       tool: result.tool,
       version: result.version,
+      mode: result.mode ?? 'static',
+      serverInfo: result.serverInfo ?? undefined,
       root: result.root,
       riskScore: result.riskScore,
       counts: result.counts,

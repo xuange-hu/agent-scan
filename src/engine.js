@@ -75,11 +75,11 @@ function loadIgnoreFile(root) {
     .filter((l) => l && !l.startsWith('#'));
 }
 
-function finalize(rawFindings, meta) {
+export function finalize(rawFindings, meta) {
   const seen = new Set();
   const findings = [];
   for (const f of rawFindings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)) {
-    const key = `${f.ruleId}:${f.file}:${f.line}`;
+    const key = `${f.ruleId}:${f.file}:${f.line}:${f.column}`;
     if (seen.has(key)) continue;
     seen.add(key);
     findings.push(f);

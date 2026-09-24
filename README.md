@@ -4,7 +4,7 @@
 
 **`npm audit` for the AI agent ecosystem.**
 
-Static security scanner for **MCP servers · Agent Skills · AGENTS.md / rule files · agent tool code**.
+Static security scanner + live MCP probe for **MCP servers · Agent Skills · AGENTS.md / rule files · agent tool code**.
 Detects prompt injection, hidden instructions, data exfiltration, tool poisoning and supply-chain risks.
 
 **Zero dependencies · runs fully offline · deterministic · SARIF out of the box**
@@ -12,7 +12,7 @@ Detects prompt injection, hidden instructions, data exfiltration, tool poisoning
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen)](https://nodejs.org)
 [![deps](https://img.shields.io/badge/dependencies-0-blue)](package.json)
-[![rules](https://img.shields.io/badge/rules-23-red)](docs/rules.md)
+[![rules](https://img.shields.io/badge/rules-30-red)](docs/rules.md)
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
@@ -69,7 +69,18 @@ agent-scan ~/.claude              # audit everything your agent can see
 agent-scan SKILL.md --format md   # one file, markdown output
 agent-scan --sarif -o out.sarif   # for GitHub code scanning
 agent-scan --fail-on high         # CI gate: exit 1 on high+ findings
-agent-scan --rules                # print the 23-rule catalog
+agent-scan --rules                # print the 30-rule catalog
+agent-scan probe npx -y some-mcp-server   # ⚡ live tool-poisoning probe (see below)
+```
+
+### ⚡ Dynamic probe: auditing what isn't in any file
+
+Poisoned tool descriptions often exist only at runtime — served by the server, never committed anywhere. `agent-scan probe <command>` launches the MCP server locally, performs the handshake, captures every `tools/list` / `prompts/list` / `resources/list` metadata field, and runs the seven **AS-T** rules over it (hidden Unicode, instruction-override text, concealment directives, exfiltration sentences, poisoned schema defaults). **It never executes a single tool** — metadata capture only, hard timeout, process killed on completion.
+
+```bash
+agent-scan probe npx -y weather-mcp@1.2.3        # probe one exact version
+agent-scan probe --timeout 8000 uvx some-server  # custom deadline
+agent-scan probe --format json node server.js    # machine-readable capture+findings
 ```
 
 ## What it detects
@@ -80,6 +91,7 @@ agent-scan --rules                # print the 23-rule catalog
 | **M — MCP configuration** | `.mcp.json`, `claude_desktop_config.json`, any `mcp*.json` | unpinned `npx` launches, inline `bash -c` payloads in config, cleartext `http://` endpoints, live secrets in `env`/`headers`, `autoApprove` everywhere |
 | **S — tool source code** | JS/TS/Python/Go/shell of MCP servers & agent tools | `exec(\`…${input}…\`)` command injection, `eval`/`new Function`, path traversal in file tools, SSRF via model-controlled URLs, **secrets read within 300 chars of a network call**, obfuscation (`eval(atob(...))`, hex chains) |
 | **N — npm supply chain** | `package.json` | `postinstall` hooks, `github:user/repo#branch` deps, `"*"` ranges, `curl … \| bash` in scripts |
+| **T — tool poisoning** ⚡ | live MCP metadata via `agent-scan probe` | hidden Unicode in tool names/titles, instruction-override and "don't tell the user" text served at runtime, exfiltration sentences in descriptions, dangerous bootstrap commands, agent-directed schemas with payload-bearing defaults |
 
 Full details, severities and remediation for every rule: **[docs/rules.md](docs/rules.md)** (also via `agent-scan --rules`).
 
@@ -110,7 +122,7 @@ Findings show up as inline annotations on the offending PR lines via GitHub code
 
 ## Why it's trustworthy
 
-- **Static only.** agent-scan never executes scanned code, never phones home, never needs an LLM. Rules are inspectable patterns — read [docs/rules.md](docs/rules.md), disagree, send a PR.
+- **Static by default; probe is read-only.** agent-scan never executes scanned code, never phones home, never needs an LLM. The one exception is explicit: `agent-scan probe` launches a server *you* asked it to launch, speaks only the metadata handshake (`initialize` + `*/list`), never calls a tool, and kills the process when done. Rules are inspectable patterns — read [docs/rules.md](docs/rules.md), disagree, send a PR.
 - **Zero dependencies.** The scanner can't itself be your supply-chain risk. `package.json` has no runtime deps — verify: `npm ls --all` prints nothing.
 - **Deterministic.** Same bytes in, same findings out; ideal for CI caching and reproducible reports.
 - **Dogfooded.** `npm run scan:self` scans this repository with itself, and `examples/` ships three realistic attack fixtures (a poisoned skill, a trojan MCP config, a vulnerable server) that all light up.
@@ -118,12 +130,12 @@ Findings show up as inline annotations on the offending PR lines via GitHub code
 ## Limitations (said out loud)
 
 - Pattern-based detection has both false positives and false negatives. A `CRITICAL` is "read this line now", not a verdict; a clean scan is not a certification.
-- It scans *files*. Tool descriptions served by a live remote MCP server, and runtime behavior, are out of scope — [dynamic tool-poisoning probing is on the roadmap](#roadmap).
+- The file scanner scans *files*. For live metadata there is `agent-scan probe` (local stdio servers); remote/SSE servers and behavior-after-a-tool-call are still out of scope — rug-pull diffing across probes is on the roadmap.
 - Regex heuristics over source code will miss logic-level vulns a human auditor would catch. It's an audit tripwire, not an AppSec replacement.
 
 ## Roadmap
 
-- [ ] **Dynamic probe mode** — connect to a local MCP server, capture `tools/list`, fingerprint poisoned descriptions (hidden Unicode, instruction-shaped text, rug-pull diffs vs. last scan)
+- [x] **Dynamic probe mode** (v0.2) — launch a local MCP server, capture `tools/list`, fingerprint poisoned descriptions. Next: persistent capture store + rug-pull diffs vs. last scan
 - [ ] **Skill-marketplace watch mode** — re-scan installed skills on a schedule, diff against previous scan, alert on drift
 - [ ] **LLM-assisted adjudication** (opt-in) — send only flagged snippets to a local model for false-positive triage
 - [ ] **Rules as data** — user-defined YAML rules + community rule packs

@@ -70,6 +70,22 @@ const DANGEROUS_CMD_RES = [
 
 const HIDDEN_UNICODE_RE = /[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\u00ad]/g;
 
+// Credential + network destination + transmission verb in ONE sentence (P007).
+const INTENT_RE = /\b(?:send|post|upload|transmit|exfiltrate|forward|leak|share|email|report|submit|pipe|dump)\b|(?:发送|上传|提交|外传|回传|报告给)/i;
+
+// Shared with the tool-poisoning analyzer (AS-T rules) — same signatures, different carrier.
+export const PATTERNS = {
+  override: OVERRIDE_RES,
+  conceal: CONCEAL_RES,
+  sysprompt: SYSPROMPT_RES,
+  jailbreak: JAILBREAK_RES,
+  dangerousCmd: DANGEROUS_CMD_RES,
+  secret: SECRET_RES,
+  network: NETWORK_RES,
+  hiddenUnicode: HIDDEN_UNICODE_RE,
+  intent: INTENT_RE,
+};
+
 function check(regexes, ruleId, findings, text, mkMessage) {
   for (const re of regexes) {
     for (const hit of allMatches(text, re)) {
@@ -112,7 +128,6 @@ export function analyzeMarkdown(ctx) {
   // window was 6/6 false positives on legitimate docs (a credential and a URL
   // merely co-occurring); require both plus an explicit transmission intent
   // verb inside the same sentence.
-  const INTENT_RE = /\b(?:send|post|upload|transmit|exfiltrate|forward|leak|share|email|report|submit|pipe|dump)\b|(?:发送|上传|提交|外传|回传|报告给)/i;
   for (const lm of text.matchAll(/[^\n]+/g)) {
     let offset = 0;
     // sentence = run of text ending at .!?。！ followed by space/EOL

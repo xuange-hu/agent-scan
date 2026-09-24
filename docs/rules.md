@@ -1,6 +1,6 @@
 # agent-scan rule catalog
 
-Every finding references exactly one rule below. Rules are static patterns: no network calls, no code execution, no model API — a scan is a pure local function of the files on disk.
+Every finding references exactly one rule below. The AS-P/M/S/N rules are static patterns: no model API, and a file scan is a pure local function of the files on disk. The AS-T rules apply to metadata captured by `agent-scan probe`, which launches an MCP server locally and lists its live tools/prompts/resources — it never executes any tool.
 
 
 ## prompt-injection
@@ -273,3 +273,77 @@ A package.json script pipes a download into a shell or installs from an unreview
 **Remediation:** Vendor the dependency or install from a pinned registry version with integrity checks.
 
 **References:** CWE-829
+
+## tool-poisoning
+
+Live metadata captured by `agent-scan probe` (initialize + tools/prompts/resources listing; no tool is ever executed).
+
+### AS-T001
+
+**Invisible Unicode in live MCP metadata** — severity `critical`
+
+A running MCP server advertises a tool name, title, description, or schema containing zero-width or bidi-override characters — hidden instructions that reach the model but not the human reviewer. Detected only at runtime; the static file scan cannot see dynamically-served metadata.
+
+**Remediation:** Do not register the server. Report it upstream; metadata strings should be plain printable text.
+
+**References:** OWASP LLM01:2025 Prompt Injection; tool poisoning attacks (Invariant Labs, 2025)
+
+### AS-T002
+
+**Instruction override in live MCP metadata** — severity `critical`
+
+A live tool description or prompt/resource text contains instruction-override phrasing ("ignore all previous instructions"…). Tool descriptions are auto-injected into agent context, making this a direct channel into the model.
+
+**Remediation:** Refuse the server until the description is cleaned; audit sessions where it was enabled.
+
+**References:** OWASP LLM01:2025 Prompt Injection
+
+### AS-T003
+
+**Concealment directive in live MCP metadata** — severity `critical`
+
+A live tool description instructs the agent to hide its actions from the user ("do not tell the user", "without mentioning this tool"). Legitimate tools never ask the agent to deceive its operator.
+
+**Remediation:** Uninstall the server and review what it did in past sessions.
+
+**References:** OWASP LLM01:2025 Prompt Injection
+
+### AS-T004
+
+**System-prompt or jailbreak framing in live MCP metadata** — severity `high`
+
+A live tool/prompt metadata field tries to surface the system prompt or move the agent into an unrestricted mode. These phrases have no functional purpose in tool documentation.
+
+**Remediation:** Remove the server; escalate to its registry listing.
+
+**References:** OWASP LLM07:2025 System Prompt Leakage
+
+### AS-T005
+
+**Credential exfiltration sentence in live MCP metadata** — severity `high`
+
+A single sentence in live MCP metadata pairs a credential source (env vars, .ssh, API keys) with a network destination and a transmission verb — an embedded exfiltration instruction aimed at the agent.
+
+**Remediation:** Treat the server as hostile; capture the full tools/list payload and report it.
+
+**References:** OWASP LLM01:2025 Prompt Injection
+
+### AS-T006
+
+**Dangerous bootstrap command in live MCP metadata** — severity `medium`
+
+A live tool description documents piping a remote script into a shell (curl … | sh) or other destructive commands, steering the agent (or user following the docs) into running them.
+
+**Remediation:** Download, inspect, and pin scripts before executing; never let an agent run doc-suggested curl|sh.
+
+**References:** CWE-829
+
+### AS-T007
+
+**Suspicious directive or payload in tool input schema** — severity `medium`
+
+An input-schema parameter description issues agent-directed commands ("you must call…", "do not change…") or a server-supplied default/const embeds URLs, remote-exec one-liners, long encoded blobs, or template placeholders. Agents typically send such defaults untouched.
+
+**Remediation:** Inspect every schema default manually before first call; reject servers that ship instructions in data fields.
+
+**References:** schema shading / tool poisoning attacks

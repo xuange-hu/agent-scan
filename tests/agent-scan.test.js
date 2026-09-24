@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { scan } from '../src/engine.js';
 import { shouldFail } from '../src/engine.js';
+import { probeScan } from '../src/probe/index.js';
 import { reportSarif, reportJson } from '../src/reporters/json.js';
 
 function workspace(files) {
@@ -297,4 +299,26 @@ test('discover: skips node_modules, honors priority docs, respects --ignore', ()
   assert.ok(allMd.findings.some((f) => f.file.includes('architecture')));
   const ignored = scan(dir, { ignore: ['pkg/**'] });
   assert.ok(!ignored.findings.some((f) => f.file.startsWith('pkg')));
+});
+
+const FIXTURE = fileURLToPath(new URL('./fixtures/poisoned-mcp-server.mjs', import.meta.url));
+
+test('probe: live MCP metadata poisoning detected across all AS-T rules', async () => {
+  const result = await probeScan(process.execPath, [FIXTURE], { timeoutMs: 15000 });
+  assert.equal(result.mode, 'probe');
+  assert.equal(result.serverInfo.name, 'fixture-server');
+  assert.equal(result.capture.tools.length, 2);
+  const ids = ruleIds(result);
+  for (const r of ['AS-T001', 'AS-T002', 'AS-T003', 'AS-T004', 'AS-T005', 'AS-T006', 'AS-T007']) {
+    assert.ok(ids.has(r), `${r} should fire on the poisoned fixture server`);
+  }
+  // findings are located in metadata references, not fake file paths
+  assert.ok(result.findings.every((f) => f.file.startsWith('mcp://fixture-server/')));
+  assert.ok(result.riskScore > 50);
+});
+
+test('probe: benign server produces zero findings', async () => {
+  const result = await probeScan(process.execPath, [FIXTURE, '--clean'], { timeoutMs: 15000 });
+  assert.deepEqual(result.findings, []);
+  assert.equal(result.riskScore, 0);
 });

@@ -224,6 +224,69 @@ export const RULES = {
     remediation: 'Vendor the dependency or install from a pinned registry version with integrity checks.',
     references: ['CWE-829'],
   },
+  'AS-T001': {
+    title: 'Invisible Unicode in live MCP metadata',
+    severity: 'critical',
+    category: 'tool-poisoning',
+    description:
+      'A running MCP server advertises a tool name, title, description, or schema containing zero-width or bidi-override characters — hidden instructions that reach the model but not the human reviewer. Detected only at runtime; the static file scan cannot see dynamically-served metadata.',
+    remediation: 'Do not register the server. Report it upstream; metadata strings should be plain printable text.',
+    references: ['OWASP LLM01:2025 Prompt Injection', 'tool poisoning attacks (Invariant Labs, 2025)'],
+  },
+  'AS-T002': {
+    title: 'Instruction override in live MCP metadata',
+    severity: 'critical',
+    category: 'tool-poisoning',
+    description:
+      'A live tool description or prompt/resource text contains instruction-override phrasing ("ignore all previous instructions"…). Tool descriptions are auto-injected into agent context, making this a direct channel into the model.',
+    remediation: 'Refuse the server until the description is cleaned; audit sessions where it was enabled.',
+    references: ['OWASP LLM01:2025 Prompt Injection'],
+  },
+  'AS-T003': {
+    title: 'Concealment directive in live MCP metadata',
+    severity: 'critical',
+    category: 'tool-poisoning',
+    description:
+      'A live tool description instructs the agent to hide its actions from the user ("do not tell the user", "without mentioning this tool"). Legitimate tools never ask the agent to deceive its operator.',
+    remediation: 'Uninstall the server and review what it did in past sessions.',
+    references: ['OWASP LLM01:2025 Prompt Injection'],
+  },
+  'AS-T004': {
+    title: 'System-prompt or jailbreak framing in live MCP metadata',
+    severity: 'high',
+    category: 'tool-poisoning',
+    description:
+      'A live tool/prompt metadata field tries to surface the system prompt or move the agent into an unrestricted mode. These phrases have no functional purpose in tool documentation.',
+    remediation: 'Remove the server; escalate to its registry listing.',
+    references: ['OWASP LLM07:2025 System Prompt Leakage'],
+  },
+  'AS-T005': {
+    title: 'Credential exfiltration sentence in live MCP metadata',
+    severity: 'high',
+    category: 'tool-poisoning',
+    description:
+      'A single sentence in live MCP metadata pairs a credential source (env vars, .ssh, API keys) with a network destination and a transmission verb — an embedded exfiltration instruction aimed at the agent.',
+    remediation: 'Treat the server as hostile; capture the full tools/list payload and report it.',
+    references: ['OWASP LLM01:2025 Prompt Injection'],
+  },
+  'AS-T006': {
+    title: 'Dangerous bootstrap command in live MCP metadata',
+    severity: 'medium',
+    category: 'tool-poisoning',
+    description:
+      'A live tool description documents piping a remote script into a shell (curl … | sh) or other destructive commands, steering the agent (or user following the docs) into running them.',
+    remediation: 'Download, inspect, and pin scripts before executing; never let an agent run doc-suggested curl|sh.',
+    references: ['CWE-829'],
+  },
+  'AS-T007': {
+    title: 'Suspicious directive or payload in tool input schema',
+    severity: 'medium',
+    category: 'tool-poisoning',
+    description:
+      'An input-schema parameter description issues agent-directed commands ("you must call…", "do not change…") or a server-supplied default/const embeds URLs, remote-exec one-liners, long encoded blobs, or template placeholders. Agents typically send such defaults untouched.',
+    remediation: 'Inspect every schema default manually before first call; reject servers that ship instructions in data fields.',
+    references: ['schema shading / tool poisoning attacks'],
+  },
 };
 
 export function ruleMeta(ruleId) {
