@@ -1,4 +1,4 @@
-import { allMatches, base64Blobs, lineColFromIndex, proximity, snippetAt, visibleUnicode } from '../util.js';
+import { allMatches, base64Blobs, lineColFromIndex, snippetAt, visibleUnicode } from '../util.js';
 
 const OVERRIDE_RES = [
   /ignore\s+(?:all\s+|any\s+)?(?:previous|prior|above|earlier|preceding)\s+(?:instructions?|prompts?|rules?|directives?|context)/gi,
@@ -108,19 +108,33 @@ export function analyzeMarkdown(ctx) {
     });
   }
 
-  // Secrets mentioned near network transmission
-  // proximity(secrets, network) → needle=network match, anchor=secret match
-  const secretHits = allMatches(text, joinAlt(SECRET_RES));
-  const netHits = allMatches(text, joinAlt(NETWORK_RES));
-  for (const { needle, anchor } of proximity(secretHits, netHits, 500)) {
-    const { line, column } = lineColFromIndex(text, anchor.index);
-    findings.push({
-      ruleId: 'AS-P007',
-      line,
-      column,
-      message: `Credential reference "${anchor.full.trim()}" appears within 500 chars of network activity "${needle.full.trim()}"`,
-      snippet: snippetAt(text, anchor.index),
-    });
+  // Secrets mentioned near network transmission. The old 500-char proximity
+  // window was 6/6 false positives on legitimate docs (a credential and a URL
+  // merely co-occurring); require both plus an explicit transmission intent
+  // verb inside the same sentence.
+  const INTENT_RE = /\b(?:send|post|upload|transmit|exfiltrate|forward|leak|share|email|report|submit|pipe|dump)\b|(?:发送|上传|提交|外传|回传|报告给)/i;
+  for (const lm of text.matchAll(/[^\n]+/g)) {
+    let offset = 0;
+    // sentence = run of text ending at .!?。！ followed by space/EOL
+    // (dots inside URLs like "...tokens.io/api" must not split)
+    for (const sentence of lm[0].split(/(?<=[.!?。！？])(?=\s|$)/)) {
+      const at = lm.index + offset;
+      offset += sentence.length + 1;
+      const secret = sentence.match(joinAlt(SECRET_RES));
+      if (!secret) continue;
+      const net = sentence.match(joinAlt(NETWORK_RES));
+      if (!net) continue;
+      const intent = sentence.match(INTENT_RE);
+      if (!intent) continue;
+      const { line, column } = lineColFromIndex(text, at + sentence.indexOf(secret[0]));
+      findings.push({
+        ruleId: 'AS-P007',
+        line,
+        column,
+        message: `Credential "${secret[0].trim()}" and network destination "${net[0].trim().slice(0, 60)}" co-occur with transmission intent "${intent[0]}" in one sentence`,
+        snippet: snippetAt(text, at + sentence.indexOf(secret[0])),
+      });
+    }
   }
 
   // Encoded payloads that decode to injection text

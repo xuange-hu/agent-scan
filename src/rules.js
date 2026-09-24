@@ -69,7 +69,7 @@ export const RULES = {
     severity: 'critical',
     category: 'data-exfiltration',
     description:
-      'Within one passage, content both touches credentials (~/.ssh, .env, API keys, browser cookies, process.env) and instructs an outbound transfer (curl/wget/fetch/POST/upload). This is the exfiltration signature of a malicious skill.',
+      'Within a single sentence, content both touches credentials (~/.ssh, .env, API keys, browser cookies, process.env) and pairs a network destination with a transmission verb (send/POST/upload/发送/上传). This is the exfiltration signature of a malicious skill.',
     remediation:
       'Split the two behaviors or remove them. Nothing an agent reads locally should silently leave the machine.',
     references: ['OWASP LLM02:2025 Insecure Output Handling', 'CWE-200'],

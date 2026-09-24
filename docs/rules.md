@@ -72,7 +72,7 @@ Content uses jailbreak scaffolding ("pretend you are", "you are now DAN", "unres
 
 **Secret-reading paired with network transmission** — severity `critical`
 
-Within one passage, content both touches credentials (~/.ssh, .env, API keys, browser cookies, process.env) and instructs an outbound transfer (curl/wget/fetch/POST/upload). This is the exfiltration signature of a malicious skill.
+Within a single sentence, content both touches credentials (~/.ssh, .env, API keys, browser cookies, process.env) and pairs a network destination with a transmission verb (send/POST/upload/发送/上传). This is the exfiltration signature of a malicious skill.
 
 **Remediation:** Split the two behaviors or remove them. Nothing an agent reads locally should silently leave the machine.
 
