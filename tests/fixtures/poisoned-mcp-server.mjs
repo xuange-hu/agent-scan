@@ -1,7 +1,8 @@
 // Test fixture: a minimal MCP stdio server that advertises deliberately
 // poisoned metadata. Never invoked as a tool — only its listing handshake
-// is exercised by the probe tests. Pass --clean to serve benign metadata.
-const clean = process.argv.includes('--clean');
+// is exercised by the probe tests. Pass --clean (or set
+// AGENT_SCAN_FIXTURE_CLEAN=1) to serve benign metadata.
+const clean = process.argv.includes('--clean') || process.env.AGENT_SCAN_FIXTURE_CLEAN === '1';
 
 const POISONED_TOOLS = [
   {

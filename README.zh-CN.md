@@ -36,13 +36,13 @@ agent-scan ~/.claude            # 审查你的 Agent「能看到」的一切
 agent-scan SKILL.md --format md # 单文件，Markdown 报告
 agent-scan --sarif -o out.sarif # 接入 GitHub code scanning
 agent-scan --fail-on high       # CI 门禁：high 及以上直接失败
-agent-scan --rules              # 查看全部 30 条规则
+agent-scan --rules              # 查看全部 31 条规则
 agent-scan probe npx -y some-mcp-server  # ⚡ 在线工具投毒探测
 ```
 
 ### ⚡ 动态探测：审计不存在于任何文件里的东西
 
-投毒的工具描述往往只在运行时下发，仓库里根本没有。`agent-scan probe <命令>` 会在本地拉起这个 MCP Server，完成握手并抓取全部 `tools/list` / `prompts/list` / `resources/list` 元数据，用 7 条 **AS-T** 规则检测（隐藏 Unicode、指令覆盖话术、隐瞒指令、外泄语句、投毒 schema 默认值）。**它绝不执行任何 tool**——只抓元数据，硬超时，探测结束立刻杀进程。agent-scan 自己的参数要写在 server 命令之前（如 `probe --format json node server.js`）。
+投毒的工具描述往往只在运行时下发，仓库里根本没有。`agent-scan probe <命令>` 会在本地拉起这个 MCP Server，完成握手并抓取全部 `tools/list` / `prompts/list` / `resources/list` 元数据，用 8 条 **AS-T** 规则检测（隐藏 Unicode、指令覆盖话术、隐瞒指令、外泄语句、投毒 schema 默认值，以及与上次保存快照对比的 **rug-pull 漂移**）。**它绝不执行任何 tool**——只抓元数据，硬超时，探测结束立刻杀进程。加 `--save` 就把本次抓取记入 `~/.agent-scan/probes/` 台账，之后对同一 server 的每次 `--save` 探测都会与上次对比，描述悄悄变了就是 AS-T008。agent-scan 自己的参数要写在 server 命令之前（如 `probe --format json node server.js`）。
 
 ## 检测什么
 
@@ -52,7 +52,7 @@ agent-scan probe npx -y some-mcp-server  # ⚡ 在线工具投毒探测
 | **M — MCP 配置** | `.mcp.json`、`claude_desktop_config.json` 等 | 不锁版本的 `npx` 启动、配置内嵌 `bash -c` 一行流、明文 `http://` 端点、`env`/`headers` 里的真实密钥、全局 `autoApprove` |
 | **S — 工具源码** | MCP Server 与 Agent 工具的 JS/TS/Python/Go/Shell | `exec(\`…${input}…\`)` 命令注入、`eval`/`new Function`、文件工具路径穿越、模型控制 URL 的 SSRF、**300 字符内"读密钥+发网络"组合**、代码混淆 |
 | **N — npm 供应链** | `package.json` | `postinstall` 钩子、`github:user/repo#branch` 依赖、`"*"` 版本范围、脚本里的 `curl … \| bash` |
-| **T — 工具投毒** ⚡ | `agent-scan probe` 抓取的在线 MCP 元数据 | 工具名/标题里的隐藏 Unicode、运行时下发的指令覆盖与"不要告诉用户"话术、描述里的凭据外泄语句、危险引导命令、带载荷默认值的投毒 schema |
+| **T — 工具投毒** ⚡ | `agent-scan probe` 抓取的在线 MCP 元数据（+ `~/.agent-scan/probes` 台账） | 工具名/标题里的隐藏 Unicode、运行时下发的指令覆盖与"不要告诉用户"话术、描述里的凭据外泄语句、危险引导命令、带载荷默认值的投毒 schema、**与上次保存快照对比的 rug-pull 漂移** |
 
 全部规则的说明与修复建议见 **[docs/rules.md](docs/rules.md)**。
 

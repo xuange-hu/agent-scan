@@ -347,3 +347,13 @@ An input-schema parameter description issues agent-directed commands ("you must 
 **Remediation:** Inspect every schema default manually before first call; reject servers that ship instructions in data fields.
 
 **References:** schema shading / tool poisoning attacks
+
+### AS-T008
+
+**Tool metadata drifted since last probe (rug-pull)** — severity `high`
+
+A previously captured server changed its advertised surface: tools appeared or vanished, or a tool description/title/inputSchema differs from the last saved probe. The classic rug-pull: behave for weeks, then flip one description into an injection the agent trusts because the server always has.
+
+**Remediation:** Diff the two captures (stored under ~/.agent-scan/probes), re-read the new descriptions in full, and only then resume use. Treat unannounced description changes as hostile until explained.
+
+**References:** rug-pull supply-chain attacks; tool poisoning (Invariant Labs, 2025)

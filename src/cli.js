@@ -24,6 +24,8 @@ USAGE
 
 PROBE OPTIONS (before the server command)
       --timeout <ms>                  Handshake/capture deadline (default: 15000)
+      --save                          Save the capture to ~/.agent-scan/probes and
+                                      report AS-T008 drift vs. the last saved probe
   Anything after the server command is passed through to that command.
 
 OPTIONS
@@ -122,7 +124,7 @@ function printRules(opts) {
 }
 
 function mainProbe(rest) {
-  const opts = { format: 'terminal', failOn: 'critical', timeout: 15000, color: true, quiet: false };
+  const opts = { format: 'terminal', failOn: 'critical', timeout: 15000, color: true, quiet: false, save: false };
   const server = [];
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
@@ -135,6 +137,7 @@ function mainProbe(rest) {
       case '-o': case '--output': opts.output = rest[++i]; break;
       case '--fail-on': opts.failOn = rest[++i]; break;
       case '--timeout': opts.timeout = Number(rest[++i]) || 15000; break;
+      case '--save': opts.save = true; break;
       case '--no-color': opts.color = false; break;
       case '-q': case '--quiet': opts.quiet = true; break;
       default:
@@ -159,10 +162,15 @@ function mainProbe(rest) {
     `agent-scan probe: launching "${cmd}${cmdArgs.length ? ' ' + cmdArgs.join(' ') : ''}" locally for metadata capture only ` +
     '(initialize + tools/prompts/resources listing — no tool will ever be executed by this probe)\n');
 
-  return probeScan(cmd, cmdArgs, { timeoutMs: opts.timeout }).then((result) => {
+  return probeScan(cmd, cmdArgs, { timeoutMs: opts.timeout, save: opts.save }).then((result) => {
     const c = result.counts;
     let header = `probe target ${result.root} · ${result.capture.tools.length} tools · ` +
       `${result.capture.prompts.length} prompts · ${result.capture.resources.length} resources captured`;
+    if (opts.save) {
+      header += result.drift
+        ? `\nrug-pull watch: compared against saved capture from ${result.drift.from} — ${result.drift.changes.length} change(s)`
+        : '\nrug-pull watch: first capture saved to ~/.agent-scan/probes (future probes will diff against it)';
+    }
 
     let body;
     if (opts.quiet && opts.format === 'terminal') {

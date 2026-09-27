@@ -322,3 +322,22 @@ test('probe: benign server produces zero findings', async () => {
   assert.deepEqual(result.findings, []);
   assert.equal(result.riskScore, 0);
 });
+
+test('probe --save: rug-pull drift reported as AS-T008', async () => {
+  const storeDir = mkdtempSync(join(tmpdir(), 'agent-scan-store-'));
+  const first = await probeScan(process.execPath, [FIXTURE], { timeoutMs: 15000, save: true, storeDir });
+  assert.equal(first.drift, null, 'first saved probe has nothing to compare against');
+  assert.ok(ruleIds(first).has('AS-T002'));
+
+  process.env.AGENT_SCAN_FIXTURE_CLEAN = '1';
+  let second;
+  try {
+    second = await probeScan(process.execPath, [FIXTURE], { timeoutMs: 15000, save: true, storeDir });
+  } finally {
+    delete process.env.AGENT_SCAN_FIXTURE_CLEAN;
+  }
+  assert.ok(second.drift, 'drift summary present');
+  assert.equal(second.drift.changes.length, 2, 'one tool removed (poisoned name), one added (clean name)');
+  assert.deepEqual([...ruleIds(second)], ['AS-T008']);
+  assert.ok(second.findings.every((f) => f.file.endsWith('#drift')));
+});
