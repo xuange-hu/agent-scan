@@ -9,6 +9,11 @@
 
 **零依赖 · 完全离线 · 结果确定 · 原生 SARIF 输出**
 
+[![CI](https://github.com/xuange-hu/agent-scan/actions/workflows/ci.yml/badge.svg)](https://github.com/xuange-hu/agent-scan/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@yoshine2007/agent-scan?color=blue)](https://www.npmjs.com/package/@yoshine2007/agent-scan)
+[![npm downloads](https://img.shields.io/npm/dm/@yoshine2007/agent-scan?color=informational)](https://www.npmjs.com/package/@yoshine2007/agent-scan)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 </div>
 
 > 完整文档以英文 [README.md](README.md) 为准，本文为同步摘要。

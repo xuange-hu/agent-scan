@@ -9,8 +9,11 @@ Detects prompt injection, hidden instructions, data exfiltration, tool poisoning
 
 **Zero dependencies · runs fully offline · deterministic · SARIF out of the box**
 
+[![CI](https://github.com/xuange-hu/agent-scan/actions/workflows/ci.yml/badge.svg)](https://github.com/xuange-hu/agent-scan/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen)](https://nodejs.org)
+[![npm version](https://img.shields.io/npm/v/@yoshine2007/agent-scan?color=blue)](https://www.npmjs.com/package/@yoshine2007/agent-scan)
+[![npm downloads](https://img.shields.io/npm/dm/@yoshine2007/agent-scan?color=informational)](https://www.npmjs.com/package/@yoshine2007/agent-scan)
 [![deps](https://img.shields.io/badge/dependencies-0-blue)](package.json)
 [![rules](https://img.shields.io/badge/rules-31-red)](docs/rules.md)
 
