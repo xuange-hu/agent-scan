@@ -1,0 +1,12 @@
+# 建议的 GitHub Topics（复制到仓库 Settings → Topics）
+mcp
+model-context-protocol
+ai-agents
+security-scanner
+prompt-injection
+sarif
+static-analysis
+devtools
+llm-security
+supply-chain-security
+agent-skills

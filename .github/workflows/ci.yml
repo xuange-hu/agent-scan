@@ -22,6 +22,16 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm test
 
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test with coverage
+        run: node --test --experimental-test-coverage tests/ | tail -20
+
   self-scan:
     # Dogfooding: agent-scan must scan its own repo clean (see .agent-scanignore
     # for the analyzer/fixture carve-outs, which are themselves reviewed).
