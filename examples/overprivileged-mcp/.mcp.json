@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "overpriv": {
+      "command": "node",
+      "args": ["server.js"],
+      "roots": ["/"],
+      "resources": { "uriTemplates": ["*"] },
+      "permissions": { "allow": ["*"] }
+    }
+  }
+}

@@ -297,6 +297,68 @@ export const RULES = {
       'Diff the two captures (stored under ~/.agent-scan/probes), re-read the new descriptions in full, and only then resume use. Treat unannounced description changes as hostile until explained.',
     references: ['rug-pull supply-chain attacks', 'tool poisoning (Invariant Labs, 2025)'],
   },
+
+  // --- expanded source / config coverage (v0.4) ---
+  'AS-S007': {
+    title: 'Suspicious outbound endpoint / webhook URL in tool code',
+    severity: 'high',
+    category: 'data-exfiltration',
+    description:
+      'Agent tool source hardcodes a destination that is a classic exfiltration or callback sink: webhook.site / requestbin / hookbin / pipedream / interact.sh, a *.ngrok tunnel, a Discord webhook, or a pastebin. These hosts exist almost exclusively to receive data from code you did not write — a read tool that POSTs to webhook.site is exfiltration, not integration.',
+    remediation:
+      'Remove the hardcoded sink. If genuine, send to an allowlisted first-party endpoint over https with documented, specific fields only.',
+    references: ['OWASP LLM02:2025 Insecure Output Handling', 'CWE-200'],
+  },
+  'AS-S008': {
+    title: 'Read-only-declared tool performs writes',
+    severity: 'high',
+    category: 'excessive-agency',
+    description:
+      'A tool/function whose name promises read-only behavior (read/get/list/show/view/fetch/describe/load) actually mutates state — it writes a file, shells out, or runs a destructive query. The mismatch is exactly how agents get quietly handed a write primitive behind a benign-sounding name.',
+    remediation:
+      'Rename the tool to reflect what it does, or split reads from writes. Review every call site that assumed the tool was safe to run automatically.',
+    references: ['OWASP LLM08:2025 Excessive Agency', 'CWE-285'],
+  },
+  'AS-S009': {
+    title: 'Hardcoded secret / token in tool source',
+    severity: 'high',
+    category: 'secrets',
+    description:
+      'A literal credential is embedded directly in agent tool source (sk-…, ghp_…, AKIA…, AIza…, Slack xox…, or a JWT eyJ…) instead of being read from the environment or a secret manager. Source gets committed, diffed, and shipped to every consumer.',
+    remediation:
+      'Read the value from process.env / a secret manager and rotate anything already committed. Add a pre-commit secret scan.',
+    references: ['CWE-798', 'CWE-312'],
+  },
+  'AS-S010': {
+    title: 'Destructive operation without a confirmation gate',
+    severity: 'high',
+    category: 'excessive-agency',
+    description:
+      'Tool code performs an irreversible mutation (fs.rm/unlink/rmdir, rimraf, rm -rf, DROP TABLE, TRUNCATE, DELETE FROM) but the file contains no confirmation / dry-run / read-only guard. Combined with auto-approval, a prompt-injected model can wipe data with a single tool call and no human in the loop.',
+    remediation:
+      'Require an explicit confirm flag or dry-run mode, and keep destructive tools out of any auto-approve allowlist.',
+    references: ['OWASP LLM08:2025 Excessive Agency', 'CWE-732'],
+  },
+  'AS-M006': {
+    title: 'Overly broad wildcard resource scope',
+    severity: 'medium',
+    category: 'excessive-agency',
+    description:
+      'An MCP server is granted a wildcard resource scope — uriTemplates containing "*", roots set to "/" (the whole filesystem), or scope lists of "*". Read access this broad means a poisoned tool can read every file the agent user can, including ~/.ssh and .env.',
+    remediation:
+      'Scope resources to the directory the agent actually needs (e.g. file:///workspace/**) and enumerate specific roots instead of "/".',
+    references: ['OWASP LLM08:2025 Excessive Agency', 'CWE-732'],
+  },
+  'AS-M007': {
+    title: 'Global write permission / root filesystem granted',
+    severity: 'high',
+    category: 'excessive-agency',
+    description:
+      'An MCP server config grants unrestricted write — permission.allow of "*", a filesystem root of "/", or a write scope over everything. This is the capability that turns any prompt injection into arbitrary file modification or deletion on the host.',
+    remediation:
+      'Grant the narrowest write scope possible (specific paths, read-only by default), and never combine write-all with auto-approve.',
+    references: ['OWASP LLM08:2025 Excessive Agency', 'CWE-732'],
+  },
 };
 
 export function ruleMeta(ruleId) {

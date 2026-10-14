@@ -63,6 +63,41 @@ const SSRF_RES = [
   /\bhttps?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|169\.254\.169\.254|metadata\.google)/g,
 ];
 
+// AS-S007 — hardcoded exfiltration / callback sinks in tool source
+const EXFIL_ENDPOINT_RES = [
+  /\bhttps?:\/\/(?:webhook\.site|requestbin\.(?:com|net)|hookbin\.com|pipedream\.net|(?:[\w-]+\.)?interact\.sh|(?:[\w-]+\.)?ngrok\.(?:io|app|free)|pastebin\.com|discord\.com\/api\/webhooks)\b/gi,
+];
+
+// AS-S009 — literal credentials embedded in tool source
+const SOURCE_SECRET_RES = /(["'])(sk-[A-Za-z0-9]{12,}|gh[pousr]_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|AIza[0-9A-Za-z_-]{20,}|xox[baprs]-[A-Za-z0-9-]{8,}|eyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{8,})\1/g;
+
+// AS-S008 — read-only-declared tool performs writes
+const READ_ONLY_NAME_RE = /^(?:read|get|list|show|view|fetch|describe|load|print)/i;
+const WRITE_PRIMITIVE_RES = [
+  /\bfs\.(?:writeFileSync|writeFile|appendFileSync|appendFile|createWriteStream|rmSync|rm|rmdirSync|rmdir|unlinkSync|unlink|renameSync|symlinkSync)\b/,
+  /\b(?:exec|execSync|execFile|execFileSync|spawn|spawnSync)\s*\(/,
+  /\bchild_process\b/,
+  /\brimraf\b/,
+  /\brm\s+-[a-z]*r[a-z]*f\b/,
+  /\bDROP\s+TABLE\b/,
+  /\bTRUNCATE\b/,
+  /\bDELETE\s+FROM\b/,
+  /\bUPDATE\s+\w+\s+SET\b/,
+  /\bcurl\b[^\n|]{0,80}\|\s*(?:sudo\s+)?(?:ba)?sh\b/,
+];
+
+// AS-S010 — destructive op without a confirmation gate
+const DESTRUCTIVE_RES = [
+  /\bfs\.(?:rmSync|rm|rmdirSync|rmdir|unlinkSync|unlink)\b/,
+  /\brimraf\b/,
+  /\brm\s+-[a-z]*r[a-z]*f\b/,
+  /\bDROP\s+TABLE\b/,
+  /\bTRUNCATE\s+TABLE\b/,
+  /\bTRUNCATE\b/,
+  /\bDELETE\s+FROM\b/,
+];
+const CONFIRM_TOKEN_RE = /\b(?:confirm|dryRun|dry-run|readOnly|read-only|requiresConfirmation|approve|approval|interactive|askUser|force\s*[:=]\s*true)\b/i;
+
 function locateFindings(ruleId, text, hits, mk) {
   const out = [];
   for (const h of hits) {
@@ -100,8 +135,9 @@ export function analyzeSource(ctx) {
   }
 
   // secrets near network calls (proximity returns needle=net match, anchor=secret match)
-  const secrets = allMatches(text, join(SECRET_SOURCE_RES));
-  const net = allMatches(text, join(NETWORK_SOURCE_RES));
+  // run on masked text so commented-out code/docs don't produce false positives
+  const secrets = allMatches(masked, join(SECRET_SOURCE_RES));
+  const net = allMatches(masked, join(NETWORK_SOURCE_RES));
   for (const { needle, anchor } of proximity(secrets, net, 300)) {
     findings.push(...locateFindings('AS-S003', text, [anchor], () =>
       `Secret access ${collapse(anchor.full)} within 300 chars of network call ${collapse(needle.full)}`));
@@ -111,7 +147,7 @@ export function analyzeSource(ctx) {
   findings.push(...locateFindings('AS-S004', text, pathHits, (h) =>
     `File path built from request/parameter input without visible containment: ${collapse(h.full)}`));
 
-  const ssrfHits = allMatches(text, join(SSRF_RES));
+  const ssrfHits = allMatches(masked, join(SSRF_RES));
   const ssrfFindings = locateFindings('AS-S005', text, ssrfHits, (h) =>
     `Network destination derived from external input: ${collapse(h.full)}`);
   // bundled/minified code matches these patterns without any taint context;
@@ -126,7 +162,73 @@ export function analyzeSource(ctx) {
   }
   findings.push(...ssrfFindings);
 
+  // AS-S007 — hardcoded exfiltration / callback sink in tool source
+  const exfilHits = allMatches(masked, join(EXFIL_ENDPOINT_RES));
+  findings.push(...locateFindings('AS-S007', text, exfilHits, (h) =>
+    `Hardcoded exfiltration/callback endpoint in tool code: ${collapse(h.full)}`));
+
+  // AS-S009 — literal credential embedded in source
+  const secretHits = allMatches(masked, SOURCE_SECRET_RES);
+  findings.push(...locateFindings('AS-S009', text, secretHits, (h) =>
+    `Hardcoded secret/token literal in source: ${collapse(h.full)}`));
+
+  // AS-S008 — read-only-declared tool actually mutates state
+  for (const { name, index, body } of readOnlyFunctionBodies(masked)) {
+    if (WRITE_PRIMITIVE_RES.some((re) => re.test(body))) {
+      findings.push(...locateFindings('AS-S008', text, [{ index, full: name }], () =>
+        `Tool "${name}" is named read-only but its body performs a write/mutation`));
+    }
+  }
+
+  // AS-S010 — destructive op with no confirmation / dry-run guard anywhere
+  if (DESTRUCTIVE_RES.some((re) => re.test(masked)) && !CONFIRM_TOKEN_RE.test(masked)) {
+    const first = DESTRUCTIVE_RES.map((re) => re.exec(masked)).find(Boolean);
+    if (first) {
+      findings.push(...locateFindings('AS-S010', text, [{ index: first.index, full: first[0] }], (h) =>
+        `Destructive operation "${collapse(h.full)}" with no confirmation/dry-run guard in the file`));
+    }
+  }
+
   return findings;
+}
+
+/** Walk brace-balanced function bodies whose name promises read-only behavior. */
+function readOnlyFunctionBodies(text) {
+  const out = [];
+  const fnHeaderRe = new RegExp(
+    [
+      '(?:function\\s+([A-Za-z_$][\\w$]*)\\s*\\([^)]*\\)\\s*\\{)',
+      '(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*(?:async\\s*)?(?:function\\s*)?\\([^)]*\\)\\s*=>\\s*\\{',
+      '\\b([A-Za-z_$][\\w$]*)\\s*\\([^)]*\\)\\s*\\{',
+    ].join('|'),
+    'g'
+  );
+  let m;
+  while ((m = fnHeaderRe.exec(text)) !== null) {
+    if (m[0].length === 0) { fnHeaderRe.lastIndex++; continue; }
+    const name = m[1] || m[2] || m[3];
+    if (!READ_ONLY_NAME_RE.test(name)) continue;
+    // the '{' is the last char of the match
+    const open = m.index + m[0].length - 1;
+    const close = matchBrace(text, open);
+    if (close === -1) continue;
+    out.push({ name, index: m.index, body: text.slice(open + 1, close) });
+  }
+  return out;
+}
+
+/** Return the index just past the matching '}' for an opening brace, or -1. */
+function matchBrace(text, openIndex) {
+  let depth = 0;
+  for (let i = openIndex; i < text.length; i++) {
+    const c = text[i];
+    if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
 }
 
 function join(regexes) {

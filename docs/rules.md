@@ -79,6 +79,17 @@ Within a single sentence, content both touches credentials (~/.ssh, .env, API ke
 **References:** OWASP LLM02:2025 Insecure Output Handling; CWE-200
 
 
+### AS-S007
+
+**Suspicious outbound endpoint / webhook URL in tool code** — severity `high`
+
+Agent tool source hardcodes a destination that is a classic exfiltration or callback sink: webhook.site / requestbin / hookbin / pipedream / interact.sh, a `*.ngrok` tunnel, a Discord webhook, or a pastebin. These hosts exist almost exclusively to receive data from code you did not write — a read tool that POSTs to webhook.site is exfiltration, not integration.
+
+**Remediation:** Remove the hardcoded sink. If genuine, send to an allowlisted first-party endpoint over https with documented, specific fields only.
+
+**References:** OWASP LLM02:2025 Insecure Output Handling; CWE-200
+
+
 ## dangerous-execution
 
 ### AS-P008
@@ -144,6 +155,17 @@ An env/header value in the config looks like a real credential (sk-, ghp_, AKIA,
 **References:** CWE-798
 
 
+### AS-S009
+
+**Hardcoded secret / token in tool source** — severity `high`
+
+A literal credential is embedded directly in agent tool source (sk-…, ghp_…, AKIA…, AIza…, Slack xox…, or a JWT eyJ…) instead of being read from the environment or a secret manager. Source gets committed, diffed, and shipped to every consumer.
+
+**Remediation:** Read the value from process.env / a secret manager and rotate anything already committed. Add a pre-commit secret scan.
+
+**References:** CWE-798; CWE-312
+
+
 ## excessive-agency
 
 ### AS-M005
@@ -155,6 +177,50 @@ The configuration enables automatic approval / yolo / skip-permissions for tool 
 **Remediation:** Keep approvals on; whitelist narrow read-only actions instead of global auto-approve.
 
 **References:** OWASP LLM08:2025 Excessive Agency
+
+
+### AS-S008
+
+**Read-only-declared tool performs writes** — severity `high`
+
+A tool/function whose name promises read-only behavior (read/get/list/show/view/fetch/describe/load) actually mutates state — it writes a file, shells out, or runs a destructive query. The mismatch is exactly how agents get quietly handed a write primitive behind a benign-sounding name.
+
+**Remediation:** Rename the tool to reflect what it does, or split reads from writes. Review every call site that assumed the tool was safe to run automatically.
+
+**References:** OWASP LLM08:2025 Excessive Agency; CWE-285
+
+
+### AS-S010
+
+**Destructive operation without a confirmation gate** — severity `high`
+
+Tool code performs an irreversible mutation (fs.rm/unlink/rmdir, rimraf, rm -rf, DROP TABLE, TRUNCATE, DELETE FROM) but the file contains no confirmation / dry-run / read-only guard. Combined with auto-approval, a prompt-injected model can wipe data with a single tool call and no human in the loop.
+
+**Remediation:** Require an explicit confirm flag or dry-run mode, and keep destructive tools out of any auto-approve allowlist.
+
+**References:** OWASP LLM08:2025 Excessive Agency; CWE-732
+
+
+### AS-M006
+
+**Overly broad wildcard resource scope** — severity `medium`
+
+An MCP server is granted a wildcard resource scope — uriTemplates containing "*", roots set to "/" (the whole filesystem), or scope lists of "*". Read access this broad means a poisoned tool can read every file the agent user can, including ~/.ssh and .env.
+
+**Remediation:** Scope resources to the directory the agent actually needs (e.g. file:///workspace/**) and enumerate specific roots instead of "/".
+
+**References:** OWASP LLM08:2025 Excessive Agency; CWE-732
+
+
+### AS-M007
+
+**Global write permission / root filesystem granted** — severity `high`
+
+An MCP server config grants unrestricted write — permission.allow of "*", a filesystem root of "/", or a write scope over everything. This is the capability that turns any prompt injection into arbitrary file modification or deletion on the host.
+
+**Remediation:** Grant the narrowest write scope possible (specific paths, read-only by default), and never combine write-all with auto-approve.
+
+**References:** OWASP LLM08:2025 Excessive Agency; CWE-732
 
 
 ## injection

@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { scan, shouldFail } from './engine.js';
 import { probeScan } from './probe/index.js';
 import { RULES } from './rules.js';
@@ -6,6 +7,7 @@ import { reportTerminal } from './reporters/terminal.js';
 import { reportJson, reportSarif } from './reporters/json.js';
 import { reportMarkdown } from './reporters/markdown.js';
 import { SEVERITIES, TOOL_VERSION } from './util.js';
+import { loadConfig } from './config.js';
 
 const HELP = `agent-scan — security scanner for the AI agent ecosystem
 (npm audit for MCP servers, Agent Skills, AGENTS.md and agent tool code)
@@ -39,6 +41,14 @@ OPTIONS
   -h, --help                              Show help
   -V, --version                           Show version
 
+PROJECT CONFIG
+  A .agent-scan.yml (or .agent-scan.yaml / .agent-scan.json) at the scan
+  root supplies defaults that flags override:
+      ignore:            [docs/**, vendor/**]   # extra ignore globs
+      fail-on:           high                  # CI threshold (alias: severity-threshold)
+      format:            sarif                 # default output format
+      include-all-md:    true                  # scan every *.md by default
+
 EXIT CODES
   0  clean (or below --fail-on threshold)
   1  findings at or above the threshold
@@ -50,6 +60,7 @@ GitHub Action:  see action.yml — uploads SARIF to code scanning automatically.
 export function main(argv) {
   if (argv[0] === 'probe') return mainProbe(argv.slice(1));
   const opts = { path: '.', format: 'terminal', failOn: 'critical', ignore: [], color: true, quiet: false, includeAllMd: false };
+  const explicit = { format: false, failOn: false, includeAllMd: false };
   let showRules = false;
 
   for (let i = 0; i < argv.length; i++) {
@@ -58,13 +69,13 @@ export function main(argv) {
       case '-h': case '--help': process.stdout.write(HELP); return 0;
       case '-V': case '--version': process.stdout.write(`agent-scan ${TOOL_VERSION}\n`); return 0;
       case '--rules': showRules = true; break;
-      case '-f': case '--format': opts.format = argv[++i]; break;
-      case '--json': opts.format = 'json'; break;
-      case '--sarif': opts.format = 'sarif'; break;
+      case '-f': case '--format': opts.format = argv[++i]; explicit.format = true; break;
+      case '--json': opts.format = 'json'; explicit.format = true; break;
+      case '--sarif': opts.format = 'sarif'; explicit.format = true; break;
       case '-o': case '--output': opts.output = argv[++i]; break;
-      case '--fail-on': opts.failOn = argv[++i]; break;
+      case '--fail-on': opts.failOn = argv[++i]; explicit.failOn = true; break;
       case '--ignore': opts.ignore.push(argv[++i]); break;
-      case '--include-all-md': opts.includeAllMd = true; break;
+      case '--include-all-md': opts.includeAllMd = true; explicit.includeAllMd = true; break;
       case '--no-color': opts.color = false; break;
       case '-q': case '--quiet': opts.quiet = true; break;
       default:
@@ -74,6 +85,17 @@ export function main(argv) {
         }
         opts.path = a;
     }
+  }
+
+  // Project config file (.agent-scan.yml) supplies defaults; explicit flags win.
+  const cfg = loadConfig(resolve(opts.path));
+  if (cfg.error) {
+    process.stderr.write(`agent-scan: warning — could not parse ${cfg.source}: ${cfg.error}\n`);
+  } else if (cfg.source) {
+    if (!explicit.format) opts.format = cfg.format;
+    if (!explicit.failOn) opts.failOn = cfg.failOn;
+    if (!explicit.includeAllMd) opts.includeAllMd = cfg.includeAllMd;
+    opts.ignore = [...opts.ignore, ...cfg.ignore];
   }
 
   if (showRules) return printRules(opts);

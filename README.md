@@ -15,7 +15,7 @@ Detects prompt injection, hidden instructions, data exfiltration, tool poisoning
 [![npm version](https://img.shields.io/npm/v/@yoshine2007/agent-scan?color=blue)](https://www.npmjs.com/package/@yoshine2007/agent-scan)
 [![npm downloads](https://img.shields.io/npm/dm/@yoshine2007/agent-scan?color=informational)](https://www.npmjs.com/package/@yoshine2007/agent-scan)
 [![deps](https://img.shields.io/badge/dependencies-0-blue)](package.json)
-[![rules](https://img.shields.io/badge/rules-31-red)](docs/rules.md)
+[![rules](https://img.shields.io/badge/rules-37-red)](docs/rules.md)
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
@@ -72,7 +72,7 @@ agent-scan ~/.claude              # audit everything your agent can see
 agent-scan SKILL.md --format md   # one file, markdown output
 agent-scan --sarif -o out.sarif   # for GitHub code scanning
 agent-scan --fail-on high         # CI gate: exit 1 on high+ findings
-agent-scan --rules                # print the 31-rule catalog
+agent-scan --rules                # print the 37-rule catalog
 agent-scan probe npx -y some-mcp-server   # ⚡ live tool-poisoning probe (see below)
 ```
 
@@ -101,13 +101,63 @@ $ agent-scan probe --save node ./my-server.js
                      instructions and…"
 ```
 
+## Architecture
+
+`agent-scan` is a pure function of the bytes on disk (plus, optionally, a server you explicitly ask it to launch). No model, no network egress, no daemon.
+
+```
+                 ┌─────────────────────────────────────────────┐
+   target repo → │ discover(root)  skip node_modules/.git,      │
+                 │                honor .agent-scanignore      │
+                 │                     │                         │
+                 │                     ▼                         │
+                 │        classify(file) → [markdown, mcpConfig,│
+                 │                        source, npm]           │
+                 │                     │                         │
+                 │     ┌───────────────┼───────────────────┐   │
+                 │     ▼               ▼                   ▼   │
+                 │  analyzers/*   (regex + proximity     reporters/*│
+                 │  P/M/S/N rules  heuristics over text)  → json │
+                 │                     │                   sarif │
+                 │                     ▼                   md   │
+                 │        finalize()  dedupe + risk score       │
+                 └─────────────────────────────────────────────┘
+
+   agent-scan probe <cmd>  →  launch MCP server (stdio OR http),
+   capture tools/prompts/resources metadata (initialize + */list only,
+   no tool ever executed), then run the AS-T rules over every text field.
+   With --save, captures are diffed against ~/.agent-scan/probes (AS-T008).
+```
+
+- **`src/analyzers/`** — one pass per file kind. Every finding references exactly one rule id in `src/rules.js`; rules are inspectable data, not magic.
+- **`src/engine.js`** — orchestration, dedup, risk-score, fail threshold.
+- **`src/probe/`** — the read-only MCP client (stdio + Streamable HTTP) and the rug-pull ledger.
+- **`src/reporters/`** — terminal / JSON (stable schema) / SARIF 2.1.0 / markdown.
+- **`src/config.js`** — optional `.agent-scan.yml` project defaults (zero-dependency YAML subset).
+
+## Project config (`.agent-scan.yml`)
+
+Drop a config at the scan root to set team defaults; command-line flags always win.
+
+```yaml
+# .agent-scan.yml
+ignore:            # extra ignore globs, merged with --ignore and .agent-scanignore
+  - docs/**
+  - vendor/**
+fail-on:           high          # CI threshold (alias: severity-threshold)
+format:            sarif         # default output format
+include-all-md:    true          # scan every *.md by default
+```
+
+A JSON variant (`.agent-scan.json`) is accepted too. See `agent-scan --help` for the full list.
+
 ## What it detects
 
 | Group | Covers | Example rules |
 |---|---|---|
 | **P — prompt injection** | `SKILL.md`, `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, prompt docs | instruction-override ("忽略以上指令" too), zero-width/bidi Unicode smuggling, "don't tell the user" concealment, system-prompt probing, **base64 payloads that decode to instructions**, jailbreak framing |
-| **M — MCP configuration** | `.mcp.json`, `claude_desktop_config.json`, any `mcp*.json` | unpinned `npx` launches, inline `bash -c` payloads in config, cleartext `http://` endpoints, live secrets in `env`/`headers`, `autoApprove` everywhere |
-| **S — tool source code** | JS/TS/Python/Go/shell of MCP servers & agent tools | `exec(\`…${input}…\`)` command injection, `eval`/`new Function`, path traversal in file tools, SSRF via model-controlled URLs, **secrets read within 300 chars of a network call**, obfuscation (`eval(atob(...))`, hex chains) |
+| **M — MCP configuration** | `.mcp.json`, `claude_desktop_config.json`, any `mcp*.json` | unpinned `npx` launches, inline `bash -c` payloads in config, cleartext `http://` endpoints, live secrets in `env`/`headers`, `autoApprove` everywhere, **wildcard resource scope `*` (AS-M006)**, **global write permission / root filesystem (AS-M007)** |
+| **S — tool source code** | JS/TS/Python/Go/shell of MCP servers & agent tools | `exec(\`…${input}…\`)` command injection, `eval`/`new Function`, path traversal in file tools, SSRF via model-controlled URLs, **secrets read within 300 chars of a network call**, obfuscation (`eval(atob(...))`, hex chains), **suspicious webhook/exfil endpoints (AS-S007)**, **read-only-declared tool that writes (AS-S008)**, **hardcoded secrets in source (AS-S009)**, **destructive ops without a confirmation gate (AS-S010)** |
 | **N — npm supply chain** | `package.json` | `postinstall` hooks, `github:user/repo#branch` deps, `"*"` ranges, `curl … \| bash` in scripts |
 | **T — tool poisoning** ⚡ | live MCP metadata via `agent-scan probe` (+ `~/.agent-scan/probes` ledger) | hidden Unicode in tool names/titles, instruction-override and "don't tell the user" text served at runtime, exfiltration sentences in descriptions, dangerous bootstrap commands, agent-directed schemas with payload-bearing defaults, **rug-pull drift vs. the last saved probe** |
 

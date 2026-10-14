@@ -117,3 +117,89 @@ export async function captureMcpMetadata(command, args = [], { timeoutMs = 15000
     }
   }
 }
+
+/**
+ * HTTP transport capture (MCP Streamable HTTP). Connects to an already-running
+ * server at `url` (e.g. http://127.0.0.1:PORT/mcp), performs the same read-only
+ * handshake + metadata listing, and returns the capture. Used by the E2E tests
+ * and by `agent-scan probe` against remote/SSE servers. Never calls a tool.
+ */
+export async function captureMcpMetadataHttp(url, { timeoutMs = 15000 } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new ProbeError(
+    `probe timed out after ${timeoutMs}ms while talking to "${url}"`)), timeoutMs);
+  let sessionId = null;
+  let nextId = 1;
+
+  try {
+    const rpc = async (method, params) => {
+      const res = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          ...(sessionId ? { 'mcp-session-id': sessionId } : {}),
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method, params }),
+      });
+      if (!sessionId) sessionId = res.headers.get('mcp-session-id');
+      if (res.status === 202) return null; // notification accepted
+      const text = await res.text();
+      const msg = parseHttpMessage(text);
+      if (msg.error) throw new ProbeError(`${msg.error.code ?? 'rpc'}: ${msg.error.message ?? 'error'}`);
+      return msg.result;
+    };
+
+    const init = await rpc('initialize', {
+      protocolVersion: PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: { name: 'agent-scan-probe', version: TOOL_VERSION },
+    });
+    await rpc('notifications/initialized', undefined);
+
+    const tools = await listHttp(rpc, 'tools/list', 'tools');
+    const prompts = await listHttpOptional(rpc, 'prompts/list', 'prompts');
+    const resources = await listHttpOptional(rpc, 'resources/list', 'resources');
+
+    return { serverInfo: init?.serverInfo ?? {}, protocolVersion: init?.protocolVersion ?? '?', tools, prompts, resources };
+  } catch (err) {
+    throw err instanceof ProbeError ? err : new ProbeError(err.message);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function listHttp(rpc, method, key) {
+  const items = [];
+  let cursor;
+  do {
+    const result = await rpc(method, cursor ? { cursor } : {});
+    items.push(...(result?.[key] ?? []));
+    cursor = result?.nextCursor ?? undefined;
+  } while (cursor);
+  return items;
+}
+
+async function listHttpOptional(rpc, method, key) {
+  try {
+    return await listHttp(rpc, method, key);
+  } catch (err) {
+    if (/^-32601/.test(err.message)) return [];
+    throw err;
+  }
+}
+
+/** Parse a JSON-RPC response that may arrive as plain JSON or SSE. */
+function parseHttpMessage(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return {};
+  if (trimmed.startsWith('event:') || trimmed.startsWith('data:') || trimmed.includes('\ndata:')) {
+    for (const line of trimmed.split('\n')) {
+      const s = line.trim();
+      if (s.startsWith('data:')) return JSON.parse(s.slice(5).trim());
+    }
+    return {};
+  }
+  return JSON.parse(trimmed);
+}

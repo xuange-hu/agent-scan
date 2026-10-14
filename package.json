@@ -1,6 +1,6 @@
 {
   "name": "@yoshine2007/agent-scan",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publishConfig": {
     "access": "public"
   },
@@ -36,7 +36,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/agent-scan.test.js tests/registry.test.js tests/properties.test.js",
+    "test": "node --test tests/agent-scan.test.js tests/registry.test.js tests/properties.test.js tests/expanded.test.js",
     "scan:self": "node bin/agent-scan.js .",
     "demo": "node bin/agent-scan.js examples --fail-on none"
   },

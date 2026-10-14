@@ -1,4 +1,4 @@
-import { captureMcpMetadata } from './mcpClient.js';
+import { captureMcpMetadata, captureMcpMetadataHttp } from './mcpClient.js';
 import { analyzeProbe } from '../analyzers/toolPoisoning.js';
 import { defaultStoreDir, loadPrevious, saveCapture, diffCaptures } from './store.js';
 import { finalize } from '../engine.js';
@@ -14,16 +14,29 @@ import { RULES } from '../rules.js';
  */
 export async function probeScan(command, args = [], { timeoutMs = 15000, save = false, storeDir } = {}) {
   const capture = await captureMcpMetadata(command, args, { timeoutMs });
+  return finalizeProbe(capture, { save, storeDir, key: command, args, rootLabel: command });
+}
 
+/**
+ * HTTP variant of the probe: connect to an already-running MCP server over
+ * Streamable HTTP (used for the E2E tests and remote/SSE targets). Same
+ * read-only contract — initialize plus the listing methods, no tool is ever executed.
+ */
+export async function probeScanHttp(url, { timeoutMs = 15000, save = false, storeDir } = {}) {
+  const capture = await captureMcpMetadataHttp(url, { timeoutMs });
+  return finalizeProbe(capture, { save, storeDir, key: url, args: [], rootLabel: url });
+}
+
+async function finalizeProbe(capture, { save = false, storeDir, key, args, rootLabel }) {
   let drift = null;
   if (save) {
     const dir = storeDir ?? defaultStoreDir();
-    const prev = loadPrevious(dir, command, args);
+    const prev = loadPrevious(dir, key, args);
     if (prev) {
       const changes = diffCaptures(prev, capture);
       drift = { from: prev.capturedAt ?? '?', changes };
     }
-    saveCapture(dir, command, args, {
+    saveCapture(dir, key, args, {
       capturedAt: new Date().toISOString(),
       serverInfo: capture.serverInfo,
       tools: capture.tools,
@@ -53,7 +66,7 @@ export async function probeScan(command, args = [], { timeoutMs = 15000, save = 
     ...capture.prompts.map((p) => `prompt:${p.name}`),
     ...capture.resources.map((r) => `resource:${r.name ?? r.uri}`),
   ];
-  const result = finalize(raw, { root: `mcp://${capture.serverInfo?.name ?? command}`, scanned, skipped: [] });
+  const result = finalize(raw, { root: `mcp://${capture.serverInfo?.name ?? rootLabel}`, scanned, skipped: [] });
   return { ...result, mode: 'probe', serverInfo: capture.serverInfo, capture, drift };
 }
 

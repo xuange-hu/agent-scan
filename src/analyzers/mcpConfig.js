@@ -101,7 +101,49 @@ function scanServerEntry(ctx, name, entry, text) {
     }
   }
 
+  // AS-M006 — overly broad wildcard resource / read scope
+  // AS-M007 — global write permission / root filesystem write
+  for (const { key, value, parentKey } of walkValues(entry)) {
+    if (typeof value !== 'string') continue;
+    const isRoot = /^(?:\/|file:\/\/\/?|\*)$/.test(value);
+    const isWildTemplate = /^\*$|^file:\/\/\/?$|^file:\/\/\*$|^https?:\/\/\*$/i.test(value);
+
+    if ((key === 'uriTemplates' || key === 'resourceTemplates') && isWildTemplate) {
+      out.push(finding('AS-M006', text, keyIndex(text, value, entryStart),
+        `Server "${name}" resource scope "${value}" is a wildcard — it can read the whole accessible filesystem`));
+    } else if (key === 'roots' && isRoot && !(parentKey && /filesystem/i.test(String(parentKey)))) {
+      out.push(finding('AS-M006', text, keyIndex(text, value, entryStart),
+        `Server "${name}" root "${value}" exposes the entire filesystem`));
+    } else if ((key === 'scope' || key === 'scopes' || key === 'resourceScopes') && value === '*') {
+      out.push(finding('AS-M006', text, keyIndex(text, value, entryStart),
+        `Server "${name}" declares a wildcard scope "*"`));
+    }
+
+    if (key === 'allow' && (value === '*' || /:\*$/.test(value) || /^filesystem:write/i.test(value))) {
+      out.push(finding('AS-M007', text, keyIndex(text, value, entryStart),
+        `Server "${name}" grants write permission "${value}" with no scoping`));
+    } else if ((key === 'roots' || key === 'allowedPaths') && isRoot && parentKey && /filesystem/i.test(String(parentKey))) {
+      out.push(finding('AS-M007', text, keyIndex(text, value, entryStart),
+        `Server "${name}" filesystem root "${value}" grants write to the whole filesystem`));
+    }
+  }
+
   return out;
+}
+
+/** Depth-first walk of an object yielding { key, value, parentKey } for every string leaf. */
+function* walkValues(node, parentKey = null) {
+  if (typeof node === 'string') {
+    yield { key: parentKey, value: node, parentKey };
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const v of node) yield* walkValues(v, parentKey);
+    return;
+  }
+  if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) yield* walkValues(v, k);
+  }
 }
 
 export function analyzeMcpConfig(ctx) {
