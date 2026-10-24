@@ -1,0 +1,71 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # Required for npm Trusted Publishing / provenance — no NPM_TOKEN.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # No registry-url on purpose: setup-node would write an .npmrc with a
+      # ${NODE_AUTH_TOKEN} placeholder, which breaks the OIDC path below.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Version gate
+        env:
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          echo "package.json=$PKG event=$EVENT tag=${TAG:-none}"
+          if [ "$EVENT" = "release" ]; then
+            [ "${TAG#v}" = "$PKG" ] || { echo "::error::tag $TAG != package.json $PKG"; exit 1; }
+          fi
+          # Refuse to republish a version already on the registry: with
+          # Trusted Publishing set up, that is a one-line mistake otherwise.
+          if npm view "@yoshine2007/agent-scan@$PKG" version >/dev/null 2>&1; then
+            echo "::error::$PKG is already published"
+            exit 1
+          fi
+
+      - name: Test before publishing
+        run: npm test
+
+      # npm Trusted Publishing: authentication comes from the OIDC token
+      # (id-token: write), so there is no NPM_TOKEN secret to rotate or leak.
+      # Requires npm CLI >= 11.5.1. One-time setup on npmjs.com:
+      # package -> Settings -> Trusted publishing -> GitHub Actions
+      # (xuange-hu/agent-scan, publish.yml, environment: (none)).
+      - name: Publish with provenance
+        run: npm publish --provenance --access public
+
+  verify:
+    name: Verify the published package installs and runs
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install from the registry and scan something
+        run: |
+          VERSION=$(npm view @yoshine2007/agent-scan version)
+          echo "published $VERSION"
+          npx --yes @yoshine2007/agent-scan@$VERSION --version
